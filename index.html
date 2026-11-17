@@ -14,8 +14,8 @@ button.p{background:var(--ac);border-color:var(--ac);color:#fff}button:focus-vis
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}.chip{white-space:nowrap;border-radius:20px}.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;margin:6px 0;display:flex;justify-content:space-between;gap:8px;cursor:pointer}
 small,.mut{color:var(--mut)}h2,h3{margin:16px 0 6px;font-weight:600}
-input,select{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px;width:100%;margin:4px 0}
-#modal{position:fixed;inset:0;background:#0007;display:none;align-items:center;justify-content:center;padding:12px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:8px;width:100%;margin:4px 0}
+#modal{position:fixed;inset:0;z-index:30;background:#0007;display:none;align-items:center;justify-content:center;padding:12px}
 #modal>div{background:var(--bg);border-radius:12px;padding:16px;max-width:460px;width:100%;max-height:90vh;overflow:auto}
 table{width:100%;border-collapse:collapse}td{padding:6px 4px;border-bottom:1px solid var(--bd);vertical-align:top}
 #sum{padding:8px;border:1px dashed var(--bd);border-radius:8px;white-space:pre-wrap}img{max-width:100%;border-radius:8px;margin:4px 0}
@@ -26,10 +26,12 @@ body.in{padding-left:56px}
 .ri svg{flex:none}.ri span{opacity:0;transition:opacity .12s}
 .sl{display:none;flex-direction:column;margin:0 0 6px 40px;max-height:55vh;overflow:auto}
 .si{text-align:left;border:0;background:none;padding:6px 10px;border-radius:6px;color:var(--mut)}.si.on{color:var(--ac);font-weight:600}.ri:hover,.si:hover{background:var(--bd)}
-#rail.open{width:240px}#rail.open .ri span{opacity:1}#rail.open .sl{display:flex}
-@media(hover:hover){#rail:hover{width:240px}#rail:hover .ri span{opacity:1}#rail:hover .sl{display:flex}}
+#rail.open{width:240px}#rail.open .ri span{opacity:1}#rail.open .sl.on{display:flex}
+@media(hover:hover){#rail:hover{width:240px}#rail:hover .ri span{opacity:1}#rail:hover .sl.on{display:flex}}
 #cm{position:fixed;display:none;background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:4px;z-index:20;min-width:170px;box-shadow:0 6px 20px #0004}
 #cm button{display:block;width:100%;border:0;text-align:left;background:none}#cm button:hover{background:var(--bd)}
+.notes{columns:220px;column-gap:10px;margin-top:14px}.note{break-inside:avoid;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:0 0 10px;cursor:pointer;white-space:pre-wrap;word-break:break-word}.note b{display:block;margin-bottom:4px}
+textarea{resize:vertical}.sw{width:28px;height:28px;border-radius:50%;padding:0;border:2px solid var(--bd)}.sw.on{border-color:var(--ac)}
 </style></head><body>
 <nav id=rail style="display:none"></nav><div id="app"></div><div id=cm></div><div id="modal"><div id="mb"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -43,7 +45,8 @@ import{CFG}from"./config.js";
 const SYS=`You are a study assistant for a German Berufsschule (electrician apprentice). The input is a German school worksheet (text and/or page photos). Reply with JSON only: {"s":"short Ukrainian explanation of what the material is about, 3-6 sentences","d":[["German key term","Ukrainian definition"]],"w":[["German word, nouns with article der/die/das","Ukrainian translation"]]}. d: up to 10 key definitions from the material. w: up to 25 main topic words plus any difficult words; skip trivial words. Keep German terms in German. Never invent facts that are not in the material.`;
 const DEF=["Elektrotechnik","Fachkunde Elektro","Mathematik","Physik","Deutsch","Arbeitsschutz","Wirtschaft und Sozialkunde","Werkstatt/Praxis"];
 const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const S={u:null,set:{},subs:[],mats:[],cur:null,mat:null,words:[],view:"subj"};let db,auth;
+const S={u:null,set:{},subs:[],mats:[],cur:null,mat:null,words:[],view:"subj",notes:[],subOpen:false};
+const NC=["var(--card)","#fbbc04","#34a853","#4285f4","#ea4335","#a142f4"];let db,auth;
 if(CFG.apiKey==="PASTE"){$("#app").innerHTML="<h2>Потрібне налаштування</h2><p>Заповни файл config.js.</p>"}
 else{const a=initializeApp(CFG);auth=getAuth(a);db=getFirestore(a);onAuthStateChanged(auth,async u=>{S.u=u;if(u)await load();render()})}
 const col=n=>collection(db,"users",S.u.uid,n),dr=(n,i)=>doc(db,"users",S.u.uid,n,i);
@@ -53,26 +56,30 @@ async function load(){
  if(q.empty){await Promise.all(DEF.map((n,i)=>addDoc(col("subjects"),{name:n,o:i})));q=await getDocs(col("subjects"))}
  S.subs=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.o-b.o);S.cur=S.cur||S.subs[0]?.id;
  S.mats=(await getDocs(col("materials"))).docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.t-a.t);
- S.words=(await getDocs(col("words"))).docs.map(d=>({id:d.id,...d.data()}))}
+ S.words=(await getDocs(col("words"))).docs.map(d=>({id:d.id,...d.data()}));
+ S.notes=(await getDocs(col("notes"))).docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.t-a.t)}
 function theme(){const r=document.documentElement;r.dataset.theme=S.set.theme&&S.set.theme!=="auto"?S.set.theme:"";r.style.setProperty("--ac",S.set.acc||"#3b6ef5")}
 function render(){
  const m=$("#app");$("#rail").style.display=S.u?"":"none";document.body.classList.toggle("in",!!S.u);
  if(!S.u){m.innerHTML=`<h2>Berufsschule</h2><p class=mut>Твої матеріали з уроків в одному місці.</p><button class=p data-a=login>Увійти через Google</button>`;return}
  rail();
  const h=`<header><span style="display:flex;align-items:center;gap:8px"><svg width="24" height="24" viewBox="0 0 100 100"><rect width="100" height="100" rx="24" style="fill:var(--ac)"/><polygon points="56,12 24,56 46,56 40,88 76,40 54,40" fill="#fff"/></svg><b>Berufsschule</b></span></header>`;
- m.innerHTML=h+(S.mat?matView():S.view=="dict"?dictView():listView());
+ m.innerHTML=h+(S.mat?matView():S.view=="dict"?dictView():S.view=="notes"?notesView():listView());
  if(!S.mat&&S.view=="dict")dictList()}
 function rail(){
  const ic=p=>`<svg viewBox="0 0 24 24" width=22 height=22 fill=none stroke=currentColor stroke-width=1.8 stroke-linecap=round stroke-linejoin=round><path d="${p}"/></svg>`,
  it=(a,v,p,t,on)=>`<button class="ri${on?" on":""}" data-a=${a} data-v="${v}">${ic(p)}<span>${t}</span></button>`;
- $("#rail").innerHTML=it("nav","subj","M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z","Предмети",S.view=="subj")
- +`<div class=sl>`+S.subs.map(s=>`<button class="si${s.id==S.cur&&S.view=="subj"?" on":""}" data-a=sub data-v="${s.id}" data-cm="sub:${s.id}">${esc(s.name)}</button>`).join("")+`<button class=si data-a=addsub>+ Новий предмет</button></div>`
+ $("#rail").innerHTML=it("togsub","","M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z","Предмети",S.view=="subj")
+ +`<div class="sl${S.subOpen?" on":""}">`+S.subs.map(s=>`<button class="si${s.id==S.cur&&S.view=="subj"?" on":""}" data-a=sub data-v="${s.id}" data-cm="sub:${s.id}">${esc(s.name)}</button>`).join("")+`<button class=si data-a=addsub>+ Новий предмет</button></div>`
  +it("nav","dict","M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11","Словник",S.view=="dict")
+ +it("nav","notes","M5 3h14v18H5zM9 8h6M9 12h6M9 16h3","Нотатки",S.view=="notes")
  +it("set","","M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4","Налаштування")}
 function listView(){
  const s=S.subs.find(x=>x.id==S.cur),g={};S.mats.filter(x=>x.sub==S.cur).forEach(x=>(g[x.topic||"Без теми"]??=[]).push(x));
  const b=Object.entries(g).map(([t,a])=>`<h3>${esc(t)}</h3>`+a.map(x=>`<div class=card data-a=open data-v="${x.id}"><span>${esc(x.title)}</span><small>${new Date(x.t).toLocaleDateString("uk")}</small></div>`).join("")).join("")||`<p class=mut>Тут поки порожньо. Додай перший матеріал.</p>`;
  return`<h2>${esc(s?.name||"")}</h2><div class=row><button class=p data-a=new>Додати матеріал</button></div>${b}`}
+function notesView(){
+ return`<h2>Нотатки</h2><div class=card style="display:block;cursor:auto;max-width:560px"><input id=nt placeholder="Заголовок"><textarea id=nx rows=3 placeholder="Нотатка…"></textarea><div class=row><button class=p data-a=addnote>Додати</button></div></div><div class=notes>${S.notes.map(n=>`<div class=note data-a=editnote data-v="${n.id}"${n.c?` style="background:${NC[n.c]}26"`:""}>${n.title?`<b>${esc(n.title)}</b>`:""}${esc(n.text)}</div>`).join("")}</div>`}
 function dictView(){
  return`<h2>Словник</h2><div class=row><input id=q placeholder="Пошук" style="flex:1;min-width:160px"><select id=fs style="width:auto"><option value="">Усі предмети</option>${S.subs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div><small id=cnt></small><table id=wl></table><p><small class=mut>Правою кнопкою (або довгим натисканням) по слову можна змінити переклад чи видалити.</small></p>`}
 function dictList(){
@@ -91,7 +98,12 @@ const modal=h=>{$("#mb").innerHTML=h;$("#modal").style.display="flex"},close=()=
 $("#modal").onclick=e=>{if(e.target.id==="modal")close()};
 const act={
  login:()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>alert("Не вдалося увійти: "+e.code)),
- sub:id=>{S.cur=id;S.view="subj";S.mat=null;render()},nav:v=>{S.view=v;S.mat=null;render()},
+ sub:id=>{S.cur=id;S.view="subj";S.mat=null;render()},nav:v=>{S.view=v;S.mat=null;render()},togsub:()=>{S.subOpen=!S.subOpen;rail()},
+ async addnote(){const t=$("#nt").value.trim(),x=$("#nx").value.trim();if(!t&&!x)return;await addDoc(col("notes"),{title:t,text:x,c:0,t:Date.now()});await load();render()},
+ editnote(id){const n=S.notes.find(x=>x.id==id);S.nid=id;S.nc=n.c||0;modal(`<h3>Нотатка</h3><input id=nt2 value="${esc(n.title)}" placeholder="Заголовок"><textarea id=nx2 rows=9>${esc(n.text)}</textarea><div class=row>${NC.map((c,i)=>`<button class="sw${i==S.nc?" on":""}" data-a=ncol data-v=${i} style="background:${c}"></button>`).join("")}</div><div class=row><button class=p data-a=savenote>Зберегти</button><button data-a=delnote>Видалити</button><button data-a=close>Закрити</button></div>`)},
+ ncol(v){S.nc=+v;document.querySelectorAll(".sw").forEach((b,i)=>b.classList.toggle("on",i==S.nc))},
+ async savenote(){await updateDoc(dr("notes",S.nid),{title:$("#nt2").value.trim(),text:$("#nx2").value,c:S.nc,t:Date.now()});await load();close();render()},
+ async delnote(){if(!confirm("Видалити нотатку?"))return;await deleteDoc(dr("notes",S.nid));await load();close();render()},
  async edword(id){const w=S.words.find(x=>x.id==id),n=prompt("Переклад",w?.uk);if(n==null)return;await updateDoc(dr("words",id),{uk:n});await load();render()},
  async delword(id){if(!confirm("Видалити слово?"))return;await deleteDoc(dr("words",id));await load();render()},
  async rensub(id){const s=S.subs.find(x=>x.id==id),n=prompt("Нова назва",s?.name);if(!n)return;await updateDoc(dr("subjects",id),{name:n});await load();render()},
@@ -131,14 +143,16 @@ const act={
  async out(){close();await signOut(auth);S.mat=null}};
 $("body").onclick=e=>{const r=$("#rail"),a=e.target.closest("[data-a]");
  if(matchMedia("(hover:none)").matches&&r.contains(e.target)&&!r.classList.contains("open")){r.classList.add("open");return}
- if(!r.contains(e.target)||a)r.classList.remove("open");
+ if(!r.contains(e.target)||(a&&a.dataset.a!="togsub"))closeRail();
  if(a)act[a.dataset.a]?.(a.dataset.v)};
-document.addEventListener("contextmenu",e=>{const t=e.target.closest("[data-cm]");if(!t)return;e.preventDefault();
+function closeRail(){const r=$("#rail");r.classList.remove("open");if(S.subOpen){S.subOpen=false;rail()}}
+$("#rail").onmouseleave=()=>{if(!$("#rail").classList.contains("open")&&S.subOpen){S.subOpen=false;rail()}};
+document.addEventListener("contextmenu",e=>{const t=e.target.closest("[data-cm]");if(!t)return;e.preventDefault();if($("#rail").contains(t))$("#rail").classList.add("open");
  const[k,...r]=t.dataset.cm.split(":"),id=r.join(":"),c=$("#cm");
  const it=k=="sub"?[["Перейменувати",()=>act.rensub(id)],["Видалити",()=>act.delsub(id)]]:[["Змінити переклад",()=>act.edword(id)],["Видалити слово",()=>act.delword(id)]];
  c.innerHTML="";it.forEach(([n,f])=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>{c.style.display="none";f()};c.append(b)});
  c.style.display="block";c.style.left=Math.min(e.clientX,innerWidth-190)+"px";c.style.top=Math.min(e.clientY,innerHeight-100)+"px"});
-addEventListener("click",()=>$("#cm").style.display="none");addEventListener("keydown",e=>e.key=="Escape"&&($("#cm").style.display="none"));
+addEventListener("click",()=>$("#cm").style.display="none");addEventListener("keydown",e=>e.key=="Escape"&&($("#cm").style.display="none",closeRail()));
 document.addEventListener("input",e=>{if(e.target.id=="q"||e.target.id=="fs")dictList()});
 async function ask(parts){const ms=[S.set.model||"gemini-flash-latest"];if(S.set.fb&&S.set.fb!==ms[0])ms.push(S.set.fb);let err;
  for(const m of ms){try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":S.set.key},body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:.2}})});
