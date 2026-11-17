@@ -130,7 +130,7 @@ const act={
    if(keep)await setDoc(dr("pages",ref.id),{imgs});
    await Promise.all(w.map(x=>setDoc(dr("words",x.de.toLowerCase().replace(/[\/\s.#?\[\]]+/g,"_").slice(0,100)||"x"),{de:x.de,uk:x.uk,sub:S.cur,mat:ref.id,t},{merge:true})));
    await load();close();act.open(ref.id)}
-  catch(e){st("Помилка: "+(e.status?"Gemini "+e.status+(e.status==429?" (ліміт запитів, спробуй пізніше)":""):e.message))}},
+  catch(e){st("Помилка: "+(e.status?"Gemini "+e.status+(e.status==429?" (ліміт запитів, спробуй пізніше)":"")+(e.msg?" — "+e.msg.slice(0,200):""):e.message))}},
  async open(id){const m=S.mats.find(x=>x.id==id);S.mat={...m};if(m.pg){const p=await getDoc(dr("pages",id));S.mat.imgs=p.data()?.imgs}render();scrollTo(0,0)},
  async savesum(){await updateDoc(dr("materials",S.mat.id),{sum:$("#sum").innerText});S.mat.sum=$("#sum").innerText;await load();alert("Збережено")},
  async delmat(){if(!confirm("Видалити матеріал?"))return;await deleteDoc(dr("materials",S.mat.id));await deleteDoc(dr("pages",S.mat.id));S.mat=null;await load();render()},
@@ -156,7 +156,7 @@ addEventListener("click",()=>$("#cm").style.display="none");addEventListener("ke
 document.addEventListener("input",e=>{if(e.target.id=="q"||e.target.id=="fs")dictList()});
 async function ask(parts){const ms=[S.set.model||"gemini-flash-latest"];if(S.set.fb&&S.set.fb!==ms[0])ms.push(S.set.fb);let err;
  for(const m of ms){try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":S.set.key},body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:.2}})});
-  if(!r.ok){err=new Error();err.status=r.status;if([404,429,503].includes(r.status))continue;throw err}
+  if(!r.ok){err=new Error();err.status=r.status;try{err.msg=(await r.json()).error.message}catch{}if([404,429,503].includes(r.status))continue;throw err}
   const j=await r.json();return JSON.parse(j.candidates[0].content.parts.map(p=>p.text||"").join("").replace(/```json|```/g,""))}catch(e){err=e;if(!e.status)throw e}}
  throw err}
 async function shrink(src,max=1280){const b=src instanceof Blob?await createImageBitmap(src):src,k=Math.min(1,max/Math.max(b.width,b.height)),c=document.createElement("canvas");c.width=b.width*k;c.height=b.height*k;c.getContext("2d").drawImage(b,0,0,c.width,c.height);return c.toDataURL("image/jpeg",.65)}
