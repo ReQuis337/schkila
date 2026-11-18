@@ -32,6 +32,15 @@ body.in{padding-left:56px}
 #cm button{display:block;width:100%;border:0;text-align:left;background:none}#cm button:hover{background:var(--bd)}
 .notes{columns:220px;column-gap:10px;margin-top:14px}.note{break-inside:avoid;background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:10px 12px;margin:0 0 10px;cursor:pointer;white-space:pre-wrap;word-break:break-word}.note b{display:block;margin-bottom:4px}
 textarea{resize:vertical}.sw{width:28px;height:28px;border-radius:50%;padding:0;border:2px solid var(--bd)}.sw.on{border-color:var(--ac)}
+.rd{max-width:820px}h3.sec{font-size:.78em;letter-spacing:.09em;text-transform:uppercase;color:var(--mut);margin:28px 0 10px;font-weight:600}
+.mt{display:flex;flex-wrap:wrap;gap:6px}.pill{background:var(--card);border:1px solid var(--bd);border-radius:20px;padding:2px 11px;font-size:.84em;color:var(--mut)}
+.sumb{border-left:4px solid var(--ac);background:var(--card);border-radius:0 12px 12px 0;padding:14px 18px;font-size:1.07em;line-height:1.75;margin:6px 0 8px}
+.dg{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}.dc{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:11px 15px;line-height:1.5}.dc b{display:block;color:var(--ac);margin-bottom:2px}
+.wg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.wc{background:var(--card);border:1px solid var(--bd);border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;gap:10px}.wc span{color:var(--mut);text-align:right}
+.fc{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;margin:8px 0}.fc code{display:block;font:600 1.18em ui-monospace,Consolas,monospace;color:var(--ac);margin-bottom:4px}
+.st{border:0;background:none;font-size:1.25em;padding:0 4px;color:var(--ac)}
+.pb{height:8px;background:var(--bd);border-radius:6px;overflow:hidden;margin:8px 0 4px}.pb i{display:block;height:100%;background:var(--ac);transition:width .3s}
+.sh{display:block;margin-bottom:4px}.sp{white-space:pre-wrap}
 </style></head><body>
 <nav id=rail style="display:none"></nav><div id="app"></div><div id=cm></div><div id="modal"><div id="mb"></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -42,9 +51,10 @@ import{initializeApp}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-ap
 import{getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import{getFirestore,doc,getDoc,setDoc,addDoc,deleteDoc,updateDoc,collection,getDocs}from"https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import{CFG}from"./config.js";
-const SYS=`You are a study assistant for a German Berufsschule (electrician apprentice). The input is a German school worksheet (text and/or page photos). Reply with JSON only: {"s":"short Ukrainian explanation of what the material is about, 3-6 sentences","d":[["German key term","Ukrainian definition"]],"w":[["German word, nouns with article der/die/das","Ukrainian translation"]],"f":[{"f":"formula as plain text","n":"German name of the formula","v":[{"s":"symbol","de":"German meaning of the symbol (with unit if given)","uk":"Ukrainian translation"}]}]}. f: every formula found in the material (max 15, [] if none), explaining each symbol. d: up to 10 key definitions from the material. w: up to 25 main topic words plus any difficult words; skip trivial words. Keep German terms in German. Never invent facts that are not in the material.`;
-const DEF=["Elektrotechnik","Fachkunde Elektro","Mathematik","Physik","Deutsch","Arbeitsschutz","Wirtschaft und Sozialkunde","Werkstatt/Praxis"];
+const SYS=`You are a study assistant for a German Berufsschule (electrician apprentice). The input is a German school worksheet (text and/or page photos). Reply with JSON only: {"t":"short topic title in German, max 5 words","s":[{"h":"section heading in Ukrainian with the German term in brackets","p":"clear explanation in Ukrainian"}],"d":[["German key term","Ukrainian definition"]],"w":[["German word, nouns with article der/die/das","Ukrainian translation"]],"f":[{"f":"formula as plain text","n":"German name of the formula","v":[{"s":"symbol","de":"German meaning of the symbol (with unit if given)","uk":"Ukrainian translation"}]}]}. f: every formula found in the material (max 15, [] if none), explaining each symbol. s: a study text that teaches the content of the material to a learner who did not understand it: 3-8 sections in the order of the material, each 2-6 sentences, plain language, with the reasoning, examples and numbers from the material; keep German terms in German and explain them in Ukrainian; do not merely describe what the material is about. d: up to 10 key definitions from the material. w: up to 25 main topic words plus any difficult words; skip trivial words. Keep German terms in German. Never invent facts that are not in the material.`;
+const DEF=["Deutsch (D)","Ethik (Eth)","Politik und Gesellschaft (PuG)","Installations- und Energietechnik (IE)","System- und Gerätetechnik (SG)","Fachunterricht Steuerungstechnik (FU-ST)","Fachunterricht IT-Systeme (FU-IT)","Fachunterricht (FU)"];
 const $=s=>document.querySelector(s),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const ago=t=>{const d=Math.round((new Date().setHours(0,0,0,0)-new Date(t).setHours(0,0,0,0))/864e5);return new Date(t).toLocaleDateString("uk")+" · "+(d<1?"сьогодні":d==1?"вчора":d+" дн. тому")};
 const S={u:null,set:{},subs:[],mats:[],cur:null,mat:null,words:[],view:"subj",notes:[],subOpen:false,forms:[],queue:[]};
 const NC=["var(--card)","#fbbc04","#34a853","#4285f4","#ea4335","#a142f4"];let db,auth;
 if(CFG.apiKey==="PASTE"){$("#app").innerHTML="<h2>Потрібне налаштування</h2><p>Заповни файл config.js.</p>"}
@@ -58,7 +68,12 @@ async function load(){
  S.mats=(await getDocs(col("materials"))).docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.t-a.t);
  S.words=(await getDocs(col("words"))).docs.map(d=>({id:d.id,...d.data()}));
  S.notes=(await getDocs(col("notes"))).docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>b.t-a.t);
- S.forms=(await getDocs(col("formulas"))).docs.map(d=>({id:d.id,...d.data()}));await lq()}
+ S.forms=(await getDocs(col("formulas"))).docs.map(d=>({id:d.id,...d.data()}));await lq();if(!S.set.sub2)await mig()}
+async function mig(){
+ const old=["Elektrotechnik","Fachkunde Elektro","Mathematik","Physik","Deutsch","Arbeitsschutz","Wirtschaft und Sozialkunde","Werkstatt/Praxis"],used=new Set(S.mats.map(m=>m.sub)),have=S.subs.map(s=>s.name);
+ await Promise.all([...S.subs.filter(s=>old.includes(s.name)&&!used.has(s.id)).map(s=>deleteDoc(dr("subjects",s.id))),...DEF.filter(n=>!have.includes(n)).map((n,i)=>addDoc(col("subjects"),{name:n,o:10+i}))]);
+ await setDoc(doc(db,"users",S.u.uid),{sub2:1},{merge:true});S.set.sub2=1;
+ const q=await getDocs(col("subjects"));S.subs=q.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.o-b.o);S.cur=S.subs[0]?.id}
 function theme(){const r=document.documentElement;r.dataset.theme=S.set.theme&&S.set.theme!=="auto"?S.set.theme:"";r.style.setProperty("--ac",S.set.acc||"#3b6ef5")}
 function render(){
  const m=$("#app");$("#rail").style.display=S.u?"":"none";document.body.classList.toggle("in",!!S.u);
@@ -79,9 +94,9 @@ function rail(){
  +it("set","","M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4","Налаштування")}
 function listView(){
  const s=S.subs.find(x=>x.id==S.cur),g={};S.mats.filter(x=>x.sub==S.cur).forEach(x=>(g[x.topic||"Без теми"]??=[]).push(x));
- const b=Object.entries(g).map(([t,a])=>`<h3>${esc(t)}</h3>`+a.map(x=>`<div class=card data-a=open data-v="${x.id}"><span>${esc(x.title)}</span><small>${new Date(x.t).toLocaleDateString("uk")}</small></div>`).join("")).join("")||`<p class=mut>Тут поки порожньо. Додай перший матеріал.</p>`;
+ const b=Object.entries(g).map(([t,a])=>`<h3>${esc(t)}</h3>`+a.map(x=>`<div class=card data-a=open data-v="${x.id}"><span>${esc(x.title)}</span><small>${ago(x.t)}</small></div>`).join("")).join("")||`<p class=mut>Тут поки порожньо. Додай перший матеріал.</p>`;
  return`<h2>${esc(s?.name||"")}</h2><div class=row><button class=p data-a=new>Додати матеріал</button></div>${b}`}
-function fmHtml(m){return(m.fm||[]).length?`<h3>Формули</h3>`+m.fm.map(x=>`<p><b style="font-family:ui-monospace,monospace">${esc(x.f)}</b> <small>${esc(x.n)}</small><br>${(x.v||[]).map(v=>`${esc(v.s)} — ${esc(v.de)} (${esc(v.uk)})`).join("; ")}</p>`).join(""):""}
+function fmHtml(m){return(m.fm||[]).length?`<h3 class=sec>Формули</h3>`+m.fm.map(x=>`<div class=fc><code>${esc(x.f)}</code>${x.n?`<small>${esc(x.n)}</small>`:""}<table>${(x.v||[]).map(v=>`<tr><td style="width:60px"><b>${esc(v.s)}</b></td><td>${esc(v.de)}</td><td class=mut>${esc(v.uk)}</td></tr>`).join("")}</table></div>`).join(""):""}
 function fView(){return`<h2>Формули</h2><div class=row><input id=fq placeholder="Пошук" style="flex:1;min-width:160px"><select id=ffs style="width:auto"><option value="">Усі предмети</option>${S.subs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div><div id=fl></div>`}
 function fList(){
  const q=($("#fq")?.value||"").toLowerCase(),f=$("#ffs")?.value;
@@ -90,24 +105,26 @@ function fList(){
 function qView(){const f=t=>new Date(t).toLocaleTimeString("uk",{hour:"2-digit",minute:"2-digit"});
  return`<h2>Черга</h2><p class=mut>Матеріали обробляються по черзі. Якщо Gemini перевантажений, спроба повторюється автоматично, поки сайт відкритий.</p>`+(S.queue.map(q=>{
   const t=q.st=="err"?"Помилка: "+esc(q.err):q.st=="run"&&q.next>Date.now()?"Обробляється…":"Очікує"+(q.next>Date.now()?" · наступна спроба о "+f(q.next):"")+(q.err?" · "+esc(q.err):"");
-  return`<div class=card style="cursor:auto"><span><b>${esc(q.title)}</b><br><small>${esc(S.subs.find(s=>s.id==q.sub)?.name||"")} · ${esc(q.topic||"Без теми")}</small><br><small>${t}</small></span><span class=row><button data-a=qnow data-v="${q.id}">Спробувати зараз</button><button data-a=qdel data-v="${q.id}">Скасувати</button></span></div>`}).join("")||"<p class=mut>Черга порожня.</p>")}
+  return`<div class=card style="cursor:auto"><span><b>${esc(q.title||q.fname)}</b><br><small>${esc(S.subs.find(s=>s.id==q.sub)?.name||"")} · ${esc(q.topic||"Без теми")}</small><br><small>${t}</small></span><span class=row><button data-a=qnow data-v="${q.id}">Спробувати зараз</button><button data-a=qdel data-v="${q.id}">Скасувати</button></span></div>`}).join("")||"<p class=mut>Черга порожня.</p>")}
 function notesView(){
  return`<h2>Нотатки</h2><div class=card style="display:block;cursor:auto;max-width:560px"><input id=nt placeholder="Заголовок"><textarea id=nx rows=3 placeholder="Нотатка…"></textarea><div class=row><button class=p data-a=addnote>Додати</button></div></div><div class=notes>${S.notes.map(n=>`<div class=note data-a=editnote data-v="${n.id}"${n.c?` style="background:${NC[n.c]}26"`:""}>${n.title?`<b>${esc(n.title)}</b>`:""}${esc(n.text)}</div>`).join("")}</div>`}
 function dictView(){
- return`<h2>Словник</h2><div class=row><input id=q placeholder="Пошук" style="flex:1;min-width:160px"><select id=fs style="width:auto"><option value="">Усі предмети</option>${S.subs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select></div><small id=cnt></small><table id=wl></table><p><small class=mut>Правою кнопкою (або довгим натисканням) по слову можна змінити переклад чи видалити.</small></p>`}
+ return`<h2>Словник</h2><div class=row><input id=q placeholder="Пошук" style="flex:1;min-width:160px"><select id=fs style="width:auto"><option value="">Усі предмети</option>${S.subs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")}</select><select id=fk style="width:auto"><option value="">Усі слова</option><option value="1">★ Вивчені</option><option value="0">Не вивчені</option></select></div><div id=prog></div><small id=cnt></small><table id=wl></table><p><small class=mut>Правою кнопкою (або довгим натисканням) по слову можна змінити переклад чи видалити.</small></p>`}
 function dictList(){
- const q=($("#q")?.value||"").toLowerCase(),f=$("#fs")?.value,k=w=>w.replace(/^(der|die|das)\s/i,"");
- const a=S.words.filter(w=>(!f||w.sub==f)&&(!q||(w.de+" "+w.uk).toLowerCase().includes(q))).sort((x,y)=>k(x.de).localeCompare(k(y.de),"de"));
- $("#wl").innerHTML=a.map(w=>`<tr data-cm="word:${esc(w.id)}"><td><b>${esc(w.de)}</b></td><td>${esc(w.uk)}</td><td><small>${esc(S.subs.find(s=>s.id==w.sub)?.name||"")}</small></td></tr>`).join("")||"<tr><td class=mut>Слів не знайдено</td></tr>";
- $("#cnt").textContent=a.length+" слів"}
-function matView(){const m=S.mat;
- return`<button data-a=back>Назад</button><h2>${esc(m.title)}</h2><small>${esc(S.subs.find(s=>s.id==m.sub)?.name||"")} · ${esc(m.topic||"Без теми")}</small>
- <h3>Про що йдеться</h3><div id=sum contenteditable>${esc(m.sum)}</div><div class=row><button data-a=savesum>Зберегти текст</button></div>
- <h3>Визначення</h3>${(m.defs||[]).map(d=>`<p><b>${esc(d.a)}</b> — ${esc(d.b)}</p>`).join("")||"<p class=mut>Немає</p>"}
- <h3>Слова</h3><table>${(m.words||[]).map(w=>`<tr><td><b>${esc(w.de)}</b></td><td>${esc(w.uk)}</td></tr>`).join("")}</table>
+ const q=($("#q")?.value||"").toLowerCase(),f=$("#fs")?.value,m=$("#fk")?.value,k=w=>w.replace(/^(der|die|das)\s/i,"");
+ const a=S.words.filter(w=>(!f||w.sub==f)&&(!m||(m=="1"?w.ok:!w.ok))&&(!q||(w.de+" "+w.uk).toLowerCase().includes(q))).sort((x,y)=>k(x.de).localeCompare(k(y.de),"de"));
+ $("#wl").innerHTML=a.map(w=>`<tr data-cm="word:${esc(w.id)}"><td style="width:34px"><button class=st data-a=wk data-v="${esc(w.id)}">${w.ok?"★":"☆"}</button></td><td><b>${esc(w.de)}</b></td><td>${esc(w.uk)}</td><td><small>${esc(S.subs.find(s=>s.id==w.sub)?.name||"")}</small></td></tr>`).join("")||"<tr><td class=mut>Слів не знайдено</td></tr>";
+ const b=S.words.filter(w=>!f||w.sub==f),o=b.filter(w=>w.ok).length,pc=b.length?Math.round(o/b.length*100):0;
+ $("#prog").innerHTML=`<div class=pb><i style="width:${pc}%"></i></div><small>Вивчено ${o} з ${b.length} · ${pc}%</small>`;$("#cnt").textContent="Показано: "+a.length}
+function matView(){const m=S.mat,sj=S.subs.find(s=>s.id==m.sub)?.name||"";
+ return`<div class=rd><button data-a=back>← Назад</button><h2 style="font-size:1.7em;line-height:1.25;margin:18px 0 8px">${esc(m.title)}</h2>
+ <div class=mt><span class=pill>${esc(sj)}</span><span class=pill>${esc(m.topic||"Без теми")}</span><span class=pill>${ago(m.t)}</span></div>
+ <h3 class=sec>Пояснення теми</h3>${m.sec?.length?m.sec.map(x=>`<div class=sumb><b class=sh>${esc(x.h)}</b><div class=sp contenteditable>${esc(x.p)}</div></div>`).join(""):`<div id=sum class=sumb contenteditable>${esc(m.sum)}</div>`}<div class=row><button data-a=savesum>Зберегти текст</button><button data-a=rentitle>Змінити назву</button></div>
+ ${(m.defs||[]).length?`<h3 class=sec>Ключові визначення</h3><div class=dg>${m.defs.map(d=>`<div class=dc><b>${esc(d.a)}</b>${esc(d.b)}</div>`).join("")}</div>`:""}
+ ${(m.words||[]).length?`<h3 class=sec>Слова</h3><div class=wg>${m.words.map(w=>`<div class=wc><b>${esc(w.de)}</b><span>${esc(w.uk)}</span></div>`).join("")}</div>`:""}
  ${fmHtml(m)}
- ${m.imgs?`<h3>Сторінки</h3>${m.imgs.map(i=>`<img src="${i}">`).join("")}`:""}
- <div class=row><button data-a=delmat>Видалити матеріал</button></div>`}
+ ${m.imgs?`<details style="margin-top:24px"><summary class=mut>Сторінки (${m.imgs.length})</summary>${m.imgs.map(i=>`<img src="${i}">`).join("")}</details>`:""}
+ <div class=row style="margin-top:24px"><button data-a=delmat>Видалити матеріал</button></div></div>`}
 const modal=h=>{$("#mb").innerHTML=h;$("#modal").style.display="flex"},close=()=>$("#modal").style.display="none";
 $("#modal").onclick=e=>{if(e.target.id==="modal")close()};
 const act={
@@ -124,7 +141,7 @@ const act={
  async delsub(id){if(S.mats.some(x=>x.sub==id))return alert("Спочатку видали матеріали цього предмета.");if(!confirm("Видалити предмет?"))return;await deleteDoc(dr("subjects",id));if(S.cur==id)S.cur=null;await load();render()},back:()=>{S.mat=null;render()},
  async addsub(){const n=prompt("Назва предмета");if(!n)return;await addDoc(col("subjects"),{name:n,o:S.subs.length});await load();render()},
   new(){const tl=[...new Set(S.mats.filter(x=>x.sub==S.cur).map(x=>x.topic).filter(Boolean))].map(t=>`<option value="${esc(t)}">`).join("");
-  modal(`<h3>Новий матеріал</h3><input id=ti placeholder="Назва (необов'язково)"><input id=tp list=tl placeholder="Тема, наприклад: Закон Ома"><datalist id=tl>${tl}</datalist>
+  modal(`<h3>Новий матеріал</h3><input id=ti placeholder="Назва (інакше AI визначить тему)"><input id=tp list=tl placeholder="Тема, наприклад: Закон Ома"><datalist id=tl>${tl}</datalist>
   <div class=row><label class=btn>Файли<input id=fl type=file multiple accept="image/*,.pdf,.docx,.pptx,.txt" hidden></label><label class=btn>Камера<input id=cam type=file accept="image/*" capture=environment hidden></label></div>
   <div id=fn class=mut>Файли не обрано</div><div id=st class=mut></div><div class=row><button class=p data-a=go>Створити конспект</button><button data-a=close>Скасувати</button></div>`);
   $("#mb").onchange=()=>{$("#fn").textContent=[...$("#fl").files,...$("#cam").files].map(f=>f.name).join(", ")||"Файли не обрано"}},
@@ -135,17 +152,19 @@ const act={
   if(!S.set.key)return st("Спочатку додай API-ключ у налаштуваннях.");
   try{st("Читаю файли…");const{txt,imgs}=await read(files);
    if(!txt.trim()&&!imgs.length)return st("У файлах не знайдено тексту.");
-   await addDoc(col("queue"),{sub:S.cur,topic:$("#tp").value.trim(),title:$("#ti").value.trim()||files[0].name.replace(/\.\w+$/,""),txt:txt.slice(0,24000),imgs:await fit(imgs),st:"wait",next:0,tries:0,t:Date.now()});
+   await addDoc(col("queue"),{sub:S.cur,topic:$("#tp").value.trim(),title:$("#ti").value.trim(),fname:files[0].name.replace(/\.\w+$/,""),txt:txt.slice(0,24000),imgs:await fit(imgs),st:"wait",next:0,tries:0,t:Date.now()});
    await lq();close();S.view="queue";S.mat=null;render();procQ()}
   catch(e){st("Помилка: "+e.message)}},
  async qnow(id){await updateDoc(dr("queue",id),{st:"wait",next:0,tries:0});await lq();render();procQ()},
  async qdel(id){if(!confirm("Скасувати й видалити з черги?"))return;await deleteDoc(dr("queue",id));await lq();render()},
  async delform(id){if(!confirm("Видалити формулу?"))return;await deleteDoc(dr("formulas",id));await load();render()},
+ async wk(id){const w=S.words.find(x=>x.id==id);if(!w)return;w.ok=!w.ok;await updateDoc(dr("words",id),{ok:w.ok});dictList()},
+ async rentitle(){const n=prompt("Нова назва",S.mat.title);if(!n)return;await updateDoc(dr("materials",S.mat.id),{title:n});S.mat.title=n;await load();render()},
  async open(id){const m=S.mats.find(x=>x.id==id);S.mat={...m};if(m.pg){const p=await getDoc(dr("pages",id));S.mat.imgs=p.data()?.imgs}render();scrollTo(0,0)},
- async savesum(){await updateDoc(dr("materials",S.mat.id),{sum:$("#sum").innerText});S.mat.sum=$("#sum").innerText;await load();alert("Збережено")},
+ async savesum(){const m=S.mat;if(m.sec?.length){const e=document.querySelectorAll(".sp");m.sec=m.sec.map((x,i)=>({h:x.h,p:e[i].innerText}))}else m.sum=$("#sum").innerText;await updateDoc(dr("materials",m.id),m.sec?.length?{sec:m.sec}:{sum:m.sum});await load();alert("Збережено")},
  async delmat(){if(!confirm("Видалити матеріал?"))return;await deleteDoc(dr("materials",S.mat.id));await deleteDoc(dr("pages",S.mat.id));S.mat=null;await load();render()},
  set(){const s=S.set;modal(`<h3>Налаштування</h3><small>API-ключ Gemini</small><input id=k type=password value="${esc(s.key)}" placeholder="Ключ з aistudio.google.com">
-  <small>Модель (ID з AI Studio)</small><input id=m value="${esc(s.model||"gemini-flash-latest")}"><small>Запасна модель</small><input id=f value="${esc(s.fb||"gemini-flash-lite-latest")}">
+  <small>Модель (ID з AI Studio)</small><input id=m value="${esc(s.model||"gemini-flash-lite-latest")}"><small>Запасна модель</small><input id=f value="${esc(s.fb||"gemini-flash-latest")}">
   <small>Тема</small><select id=th>${[["auto","Авто"],["light","Світла"],["dark","Темна"]].map(([v,n])=>`<option value=${v}${(s.theme||"auto")==v?" selected":""}>${n}</option>`).join("")}</select>
   <small>Акцентний колір</small><input id=ac type=color value="${s.acc||"#3b6ef5"}">
   <div class=row><button class=p data-a=saveset>Зберегти</button><button data-a=out>Вийти</button><button data-a=close>Закрити</button></div>`)},
@@ -163,7 +182,7 @@ document.addEventListener("contextmenu",e=>{const t=e.target.closest("[data-cm]"
  c.innerHTML="";it.forEach(([n,f])=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>{c.style.display="none";f()};c.append(b)});
  c.style.display="block";c.style.left=Math.min(e.clientX,innerWidth-190)+"px";c.style.top=Math.min(e.clientY,innerHeight-100)+"px"});
 addEventListener("click",()=>$("#cm").style.display="none");addEventListener("keydown",e=>e.key=="Escape"&&($("#cm").style.display="none",closeRail()));
-document.addEventListener("input",e=>{if(e.target.id=="q"||e.target.id=="fs")dictList();if(e.target.id=="fq"||e.target.id=="ffs")fList()});
+document.addEventListener("input",e=>{if(["q","fs","fk"].includes(e.target.id))dictList();if(e.target.id=="fq"||e.target.id=="ffs")fList()});
 const lq=async()=>{S.queue=(await getDocs(col("queue"))).docs.map(d=>({id:d.id,...d.data()}))};
 const rer=()=>{if(!S.u)return;if(!S.mat&&(S.view=="queue"||S.view=="subj"))render();else rail()};
 const img=u=>new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=u});
@@ -171,8 +190,8 @@ async function fit(a){for(let m=1100;a.reduce((n,i)=>n+i.length,0)>780000&&m>500
 async function saveMat(q,r){
  const pr=x=>(x||[]).filter(Array.isArray).map(y=>[String(y[0]),String(y[1])]),d=pr(r.d).map(([a,b])=>({a,b})),w=pr(r.w).map(([de,uk])=>({de,uk})),
  fm=(r.f||[]).filter(x=>x&&x.f).slice(0,20).map(x=>({f:String(x.f),n:String(x.n||""),v:(x.v||[]).filter(v=>v&&v.s).map(v=>({s:String(v.s),de:String(v.de||""),uk:String(v.uk||"")}))})),
- im=q.imgs||[],keep=im.length>0,t=Date.now(),k=z=>z.toLowerCase().replace(/[\/\s.#?\[\]]+/g,"_").slice(0,100)||"x";
- const ref=await addDoc(col("materials"),{sub:q.sub,topic:q.topic,title:q.title,sum:String(r.s||""),defs:d,words:w,fm,t,pg:keep});
+ sec=(Array.isArray(r.s)?r.s:[]).filter(x=>x&&x.p).slice(0,12).map(x=>({h:String(x.h||""),p:String(x.p)})),im=q.imgs||[],keep=im.length>0,t=Date.now(),k=z=>z.toLowerCase().replace(/[\/\s.#?\[\]]+/g,"_").slice(0,100)||"x";
+ const ref=await addDoc(col("materials"),{sub:q.sub,topic:q.topic,title:q.title||String(r.t||"").trim().slice(0,70)||q.fname||"Матеріал",sum:Array.isArray(r.s)?"":String(r.s||""),sec,defs:d,words:w,fm,t,pg:keep});
  if(keep)await setDoc(dr("pages",ref.id),{imgs:im});
  await Promise.all([...w.map(x=>setDoc(dr("words",k(x.de)),{de:x.de,uk:x.uk,sub:q.sub,mat:ref.id,t},{merge:true})),...fm.map(x=>setDoc(dr("formulas",k(x.f)),{...x,sub:q.sub,mat:ref.id,t},{merge:true}))])}
 let busy=false;
@@ -189,7 +208,7 @@ async function procQ(){
  catch(e){console.error(e)}
  busy=false;rer()}
 setInterval(()=>{if(S.u)procQ()},60000);addEventListener("online",()=>S.u&&procQ());
-async function ask(parts){const ms=[S.set.model||"gemini-flash-latest"];if(S.set.fb&&S.set.fb!==ms[0])ms.push(S.set.fb);let err;
+async function ask(parts){const ms=[S.set.model||"gemini-flash-lite-latest"];if(S.set.fb&&S.set.fb!==ms[0])ms.push(S.set.fb);let err;
  for(let i=0;i<3;i++){if(i)await new Promise(r=>setTimeout(r,4000*i));for(const m of ms){try{const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`,{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":S.set.key},body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:[{parts}],generationConfig:{responseMimeType:"application/json",temperature:.2}})});
   if(!r.ok){err=new Error();err.status=r.status;try{err.msg=(await r.json()).error.message}catch{}if([404,429,503].includes(r.status))continue;throw err}
   const j=await r.json();return JSON.parse(j.candidates[0].content.parts.map(p=>p.text||"").join("").replace(/```json|```/g,""))}catch(e){err=e;if(!e.status)throw e}}
